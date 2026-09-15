@@ -1,0 +1,101 @@
+let
+    // ===============================
+    // 1) Parâmetros do calendário
+    // ===============================
+    DataInicial = #date(2000, 1, 1),
+    DataFinal   = Date.EndOfYear(Date.From(DateTime.LocalNow())),
+
+    // ===============================
+    // 2) Lista de datas
+    // ===============================
+    ListaDatas =
+        List.Dates(
+            DataInicial,
+            Duration.Days(DataFinal - DataInicial) + 1,
+            #duration(1, 0, 0, 0)
+        ),
+
+    // ===============================
+    // 3) Converte em tabela
+    // ===============================
+    Calendario =
+        Table.FromList(
+            ListaDatas,
+            Splitter.SplitByNothing(),
+            {"Data"},
+            null,
+            ExtraValues.Error
+        ),
+
+    #"Tipo Alterado" =
+        Table.TransformColumnTypes(
+            Calendario,
+            {{"Data", type date}}
+        ),
+
+    // ===============================
+    // 4) Colunas básicas
+    // ===============================
+    #"Ano"            = Table.AddColumn(#"Tipo Alterado", "Ano", each Date.Year([Data]), Int64.Type),
+    #"MesNumero"      = Table.AddColumn(#"Ano", "Mes_Numero", each Date.Month([Data]), Int64.Type),
+    #"MesNome"        = Table.AddColumn(#"MesNumero", "Mes_Nome", each Date.MonthName([Data]), type text),
+
+    // >>> NOVO: Mês abreviado (Jan, Fev, Mar...)
+    #"MesAbreviado" =
+        Table.AddColumn(
+            #"MesNome",
+            "Mes_Abrev",
+            each Text.Start(Date.MonthName([Data]), 3),
+            type text
+        ),
+
+    #"AnoMes"         = Table.AddColumn(#"MesAbreviado", "AnoMes", each Text.From(Date.Year([Data])) & "-" & Text.PadStart(Text.From(Date.Month([Data])), 2, "0"), type text),
+    #"AnoMesSort"     = Table.AddColumn(#"AnoMes", "AnoMes_Sort", each Date.Year([Data]) * 100 + Date.Month([Data]), Int64.Type),
+
+    // ===============================
+    // 5) Dia / Semana
+    // ===============================
+    #"Dia"            = Table.AddColumn(#"AnoMesSort", "Dia", each Date.Day([Data]), Int64.Type),
+    #"DiaSemanaNum"   = Table.AddColumn(#"Dia", "Dia_Semana_Num", each Date.DayOfWeek([Data], Day.Monday) + 1, Int64.Type),
+    #"DiaSemanaNome"  = Table.AddColumn(#"DiaSemanaNum", "Dia_Semana_Nome", each Date.DayOfWeekName([Data]), type text),
+
+    #"SemanaAno"      = Table.AddColumn(#"DiaSemanaNome", "Semana_Ano", each Date.WeekOfYear([Data], Day.Monday), Int64.Type),
+    #"AnoSemana"      = Table.AddColumn(#"SemanaAno", "AnoSemana", each Text.From(Date.Year([Data])) & "-W" & Text.PadStart(Text.From(Date.WeekOfYear([Data], Day.Monday)), 2, "0"), type text),
+
+    // ===============================
+    // 6) Trimestre
+    // ===============================
+    #"TrimestreNum"   = Table.AddColumn(#"AnoSemana", "Trimestre_Num", each Date.QuarterOfYear([Data]), Int64.Type),
+    #"Trimestre"      = Table.AddColumn(#"TrimestreNum", "Trimestre", each "T" & Text.From(Date.QuarterOfYear([Data])), type text),
+
+    // ===============================
+    // 7) Flags úteis
+    // ===============================
+    Hoje = Date.From(DateTime.LocalNow()),
+
+    #"Eh_Hoje" =
+        Table.AddColumn(
+            #"Trimestre",
+            "Eh_Hoje",
+            each [Data] = Hoje,
+            type logical
+        ),
+
+    #"Eh_Ano_Atual" =
+        Table.AddColumn(
+            #"Eh_Hoje",
+            "Eh_Ano_Atual",
+            each Date.Year([Data]) = Date.Year(Hoje),
+            type logical
+        ),
+
+    #"Eh_Mes_Atual" =
+        Table.AddColumn(
+            #"Eh_Ano_Atual",
+            "Eh_Mes_Atual",
+            each Date.Year([Data]) = Date.Year(Hoje)
+                 and Date.Month([Data]) = Date.Month(Hoje),
+            type logical
+        )
+in
+    #"Eh_Mes_Atual"
